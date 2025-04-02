@@ -96,7 +96,7 @@ def build_chat(
     tokens = []
     mask = []
     if apply_mask is False:
-        tokens = tokenizer.apply_chat_template(chat, tokenize=False)
+        tokens = tokenizer.apply_chat_template(chat)
         mask = tokens
         return tokens, mask
     elif for_rm:
