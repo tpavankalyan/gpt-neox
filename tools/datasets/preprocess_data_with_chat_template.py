@@ -96,7 +96,7 @@ def build_chat(
     tokens = []
     mask = []
     if apply_mask is False:
-        tokens = tokenizer.apply_chat_template(chat)
+        tokens = tokenizer.apply_chat_template(chat, tokenize=False)
         mask = tokens
         return tokens, mask
     elif for_rm:
@@ -112,6 +112,7 @@ def build_chat(
             raise ValueError(
                 "Tokenizer does not have an EOS token, unable to determine good mask, please edit and make your own."
             )
+
         return tokens, mask
     for i, turn in enumerate(chat):
         add_gen = (
@@ -289,8 +290,6 @@ def main():
     args = get_args()
     encoder = Encoder(args)
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
-    print(f"Vocab size: {tokenizer.vocab_size}")
-    print(f"Output prefix: {args.output_prefix}")
 
     # build a semaphore object to stop `yield_from_files` from getting ahead of encoder.encode and
     # hence building up memory
@@ -375,16 +374,20 @@ def main():
             token_mask = conv[1]
             reward = conv[2]
             builders[key].add_item(np.array(tokens, dtype=builders[key].dtype))
-            builders[key + "_label"].add_item(
-                np.array(token_mask, dtype=builders[key + "_label"].dtype)
-            )
+            
+            # Skip adding `_label` if `--no-mask` is set
+            if not args.no_mask:
+                builders[key + "_label"].add_item(
+                    np.array(token_mask, dtype=builders[key + "_label"].dtype)
+                )
             if args.reward_key is not None:
                 builders[key + "_reward"].add_item(
                     np.array(reward, dtype=builders[key + "_reward"].dtype)
                 )
-            # add indx...
+            # Add index
             builders[key].end_document()
-            builders[key + "_label"].end_document()
+            if not args.no_mask:
+                builders[key + "_label"].end_document()
             if args.reward_key is not None:
                 builders[key + "_reward"].end_document()
             if i == 1:
@@ -407,7 +410,8 @@ def main():
     update_keys = args.jsonl_keys
     for key in update_keys:
         builders[key].finalize(output_idx_files[key])
-        builders[key + "_label"].finalize(output_idx_files[key + "_label"])
+        if not args.no_mask:
+            builders[key + "_label"].finalize(output_idx_files[key + "_label"])
         if args.reward_key is not None:
             builders[key + "_reward"].finalize(output_idx_files[key + "_reward"])
 
